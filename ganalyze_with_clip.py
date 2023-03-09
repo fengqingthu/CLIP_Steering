@@ -5,17 +5,20 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
+import torchvision.transforms as torch_transforms
 import pickle
 import os
 import pathlib
-import torch_utils
+import clip
+import matplotlib.pyplot as plt
 
 sys.path.append(os.path.abspath(os.getcwd()))
+sys.path.append('/content/CLIP_Steering/stylegan2-ada-pytorch/')
 
-from clip_classifier_utils import SimpleTokenizer
-import torchvision.transforms as torch_transforms
+import torch_utils
 import ganalyze_transformations as transformations
 import ganalyze_common_utils as common
+from clip_classifier_utils import SimpleTokenizer
 import logging
 
 logging.basicConfig(
@@ -26,6 +29,21 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def plot_save_image(img, out_dir):
+    img = (gan_images.permute(0, 2, 3, 1)).clamp(0, 255).to(torch.uint8)
+    img_np = img.detach().cpu().numpy().squeeze()
+
+    fig, ax = plt.subplots(nrows=2, ncols=3, figsize=(10, 6))
+    for i in range(6):
+        row = i // 3
+        col = i % 3
+        ax[row, col].imshow(img_np[i])
+    plt.show()
+    
+    for i in range(6):
+      filename = f"image_{batch_start}_{i}.png"
+      plt.imsave(f"{checkpoint_dir}/{filename}", img_np[i])
 
 def gan_output_transform(imgs):
     # Input:
@@ -86,8 +104,7 @@ G.to(device)
 latent_space_dim = G.z_dim
 
 # Set up clip classifier
-# TODO(Qing): CLIP APIs have broken changed and the pretrained model seems not available.
-clip_model_path = '../pretrained/clip_ViT-B-32.pt'
+clip_model_path = '/root/.cache/clip/ViT-B-32.pt'
 clip_model = torch.jit.load(clip_model_path)
 clip_model.eval()
 clip_model.to(device)
@@ -103,7 +120,7 @@ print("Vocab size:", vocab_size)
 # Extract text features for clip
 attributes = ["an evil face", "a radiant face", "a criminal face", "a beautiful face", "a handsome face", "a smart face"]
 class_index = 2 #which attribute do we want to maximize
-tokenizer = SimpleTokenizer()
+tokenizer = SimpleTokenizer("CLIP/clip/bpe_simple_vocab_16e6.txt.gz")
 sot_token = tokenizer.encoder['<|startoftext|>']
 eot_token = tokenizer.encoder['<|endoftext|>']
 text_descriptions = [f"This is a photo of {label}" for label in attributes]
@@ -150,14 +167,14 @@ optim_iter = 0
 batch_size = 6
 train_alpha_a = -0.5 # Lower limit for step sizes
 train_alpha_b = 0.5 # Upper limit for step sizes
-num_samples = 400000 # Number of samples to train for
+num_samples = 1200 # Number of samples to train for
 
 # create training set
 #np.random.seed(seed=0)
 truncation = 1
 zs = common.truncated_z_sample(num_samples, latent_space_dim, truncation)
 
-checkpoint_dir = f'/data/scratch/swamiviv/projects/stylegan2-ada-pytorch/clip_steering/results_maximize_{attributes[class_index]}_probability'
+checkpoint_dir = f'checkpoints/results_maximize_{attributes[class_index]}_probability'
 pathlib.Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
 # loop over data batches
@@ -197,10 +214,17 @@ for batch_start in range(0, num_samples, batch_size):
 
     # print loss
     losses.update(loss.item(), batch_size)
-    if optim_iter % 100 == 0:
+    if optim_iter % 10 == 0:
         logger.info(f'[Maximizing score for {attributes[class_index]}] Progress: [{batch_start}/{num_samples}] {losses}')
+        print(f'[Maximizing score for {attributes[class_index]}] Progress: [{batch_start}/{num_samples}] {losses}')
+        
 
-    if optim_iter % 500 == 0:
+    if optim_iter % 50 == 0:
         logger.info(f"saving checkpoint at iteration {optim_iter}")
+        print(f"saving checkpoint at iteration {optim_iter}")
         torch.save(transformation.state_dict(), os.path.join(checkpoint_dir, "pytorch_model_{}.pth".format(batch_start)))
+
+        # plot and save sample images
+        plot_save_image(gan_images, checkpoint_dir)
+
     optim_iter = optim_iter + 1

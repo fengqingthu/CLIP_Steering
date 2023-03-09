@@ -8,6 +8,7 @@ def truncated_z_sample(batch_size, dim_z, truncation=1):
     values = truncnorm.rvs(-2, 2, size=(batch_size, dim_z))
     return truncation * values
 
+
 def imgrid(imarray, cols=5, pad=1):
     if imarray.dtype != np.uint8:
         imarray = np.uint8(imarray)
@@ -33,11 +34,12 @@ def imgrid(imarray, cols=5, pad=1):
         grid = grid[:-pad, :-pad]
     return grid
 
+
 def annotate_outscore(array, outscore):
     for i in range(array.shape[0]):
-        I = PIL.Image.fromarray(np.uint8(array[i,:,:,:]))
+        I = PIL.Image.fromarray(np.uint8(array[i, :, :, :]))
         draw = PIL.ImageDraw.Draw(I)
-        font =  PIL.ImageFont.truetype("/data/scratch/swamiviv/projects/stylegan2-ada-pytorch/clip_steering/arial.ttf", int(array.shape[1]/8.5))
+        font = PIL.ImageFont.truetype("arial.ttf", int(array.shape[1]/8.5))
         message = str(round(np.squeeze(outscore)[i], 2))
         x, y = (0, 0)
         w, h = font.getsize(message)

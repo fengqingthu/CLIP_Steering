@@ -5,16 +5,19 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
-import torchvision.transforms as torch_transforms
-import ganalyze_transformations as transformations
-import ganalyze_common_utils as common
 import pickle
 import os
 import pathlib
+import torch_utils
+
 sys.path.append(os.path.abspath(os.getcwd()))
-sys.path.append('/data/scratch/swamiviv/projects/stylegan2-ada-pytorch/')
+
 from clip_classifier_utils import SimpleTokenizer
+import torchvision.transforms as torch_transforms
+import ganalyze_transformations as transformations
+import ganalyze_common_utils as common
 import logging
+
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
     level=logging.INFO,
@@ -74,7 +77,7 @@ def get_clip_probs(image_inputs, encoded_text, model, class_index=0):
     return clip_probs.narrow(dim=-1, start=class_index, length=1).squeeze(dim=-1)
 
 # Set up GAN
-gan_model_path = '../pretrained/ffhq.pkl'
+gan_model_path = 'pretrained/ffhq.pkl'
 # Initialize GAN generator and transforms
 with open(gan_model_path, 'rb') as f:
     G = pickle.load(f)['G_ema']
@@ -83,6 +86,7 @@ G.to(device)
 latent_space_dim = G.z_dim
 
 # Set up clip classifier
+# TODO(Qing): CLIP APIs have broken changed and the pretrained model seems not available.
 clip_model_path = '../pretrained/clip_ViT-B-32.pt'
 clip_model = torch.jit.load(clip_model_path)
 clip_model.eval()
